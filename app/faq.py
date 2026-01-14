@@ -21,10 +21,8 @@ ef = embedding_functions.SentenceTransformerEmbeddingFunction(
 )
 
 # Persistent ChromaDB client
-chroma_client = chromadb.Client(
-    settings=chromadb.Settings(
-        persist_directory="./chroma_db"
-    )
+chroma_client = chromadb.PersistentClient(
+    path="./chroma_db"
 )
 
 collection_name_faq = "faqs"
@@ -57,7 +55,7 @@ def ingest_faq_data(path: Path):
         ids=ids
     )
 
-    chroma_client.persist()
+
     print(f"FAQ data ingested into collection: {collection_name_faq}")
 
 # ---------------------------------------------------------------------
