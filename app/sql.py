@@ -4,21 +4,16 @@ import sqlite3
 import pandas as pd
 from pathlib import Path
 from dotenv import load_dotenv
-from phi.llm.openai import OpenAIChat
+from openai import OpenAI
 
 # ---------------------------------------------------------------------
 # Setup
 # ---------------------------------------------------------------------
 load_dotenv()
 
-model = OpenAIChat(
-    model="gpt-5-mini",
-    api_key=os.getenv("OPENAI_API_KEY"),
-    temperature=0
-)
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 db_path = Path(__file__).parent / "db.sqlite"
-
 DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 
 # ---------------------------------------------------------------------
@@ -80,17 +75,13 @@ def _is_safe_sql(sql: str) -> bool:
     sql_upper = sql.upper()
     return not any(re.search(rf"\b{kw}\b", sql_upper) for kw in UNSAFE_SQL_KEYWORDS)
 
+
 def _requires_limit(sql: str) -> bool:
-    """
-    Detect ranking queries that must be bounded
-    """
     sql_upper = sql.upper()
     return "ORDER BY" in sql_upper and "LIMIT" not in sql_upper
 
+
 def _extract_sql(text: str) -> str | None:
-    """
-    Extract first SQL block enclosed in <SQL></SQL>
-    """
     match = re.search(r"<SQL>\s*(.*?)\s*</SQL>", text, re.DOTALL | re.IGNORECASE)
     return match.group(1).strip() if match else None
 
@@ -105,19 +96,21 @@ def generate_sql(question: str) -> str:
         {"role": "user", "content": question},
     ]
 
-    response = model.invoke(messages)
-    sql = _extract_sql(response.content)
+    response = client.responses.create(
+        model="gpt-5-mini",
+        input=messages
+    )
+
+    sql = _extract_sql(response.output_text)
 
     if not sql:
         raise ValueError("LLM failed to generate SQL.")
 
     if not _is_safe_sql(sql):
         raise ValueError("Unsafe SQL detected.")
-    
-    # Ranking queries must be bounded
+
     if _requires_limit(sql):
         raise ValueError("Ranking query without LIMIT detected.")
-
 
     if DEBUG:
         print("\n[DEBUG] Generated SQL:\n", sql)
@@ -144,8 +137,12 @@ def narrate_results(question: str, df: pd.DataFrame) -> str:
         },
     ]
 
-    response = model.invoke(messages)
-    return response.content
+    response = client.responses.create(
+        model="gpt-5-mini",
+        input=messages
+    )
+
+    return response.output_text
 
 
 # ---------------------------------------------------------------------

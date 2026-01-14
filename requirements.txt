@@ -1,13 +1,7 @@
 streamlit
 pandas
-pandasql
 sentence-transformers
 chromadb
 semantic-router==0.0.20
-langchain
-langchain-community
-langchain-chroma
-langchain-huggingface
 python-dotenv
-phi
 openai
