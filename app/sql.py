@@ -4,17 +4,22 @@ import sqlite3
 import pandas as pd
 from pathlib import Path
 from dotenv import load_dotenv
-from phi.model.openai import OpenAIChat
+from phi.llm.openai import OpenAIChat
 
 # ---------------------------------------------------------------------
 # Setup
 # ---------------------------------------------------------------------
 load_dotenv()
 
-model = OpenAIChat(id="gpt-5-mini")
+model = OpenAIChat(
+    model="gpt-5-mini",
+    api_key=os.getenv("OPENAI_API_KEY"),
+    temperature=0
+)
+
 db_path = Path(__file__).parent / "db.sqlite"
 
-DEBUG = True
+DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 
 # ---------------------------------------------------------------------
 # Prompts
@@ -73,8 +78,14 @@ UNSAFE_SQL_KEYWORDS = {"DROP", "DELETE", "UPDATE", "INSERT", "ALTER"}
 
 def _is_safe_sql(sql: str) -> bool:
     sql_upper = sql.upper()
-    return not any(keyword in sql_upper for keyword in UNSAFE_SQL_KEYWORDS)
+    return not any(re.search(rf"\b{kw}\b", sql_upper) for kw in UNSAFE_SQL_KEYWORDS)
 
+def _requires_limit(sql: str) -> bool:
+    """
+    Detect ranking queries that must be bounded
+    """
+    sql_upper = sql.upper()
+    return "ORDER BY" in sql_upper and "LIMIT" not in sql_upper
 
 def _extract_sql(text: str) -> str | None:
     """
@@ -94,7 +105,7 @@ def generate_sql(question: str) -> str:
         {"role": "user", "content": question},
     ]
 
-    response = model.run(messages)
+    response = model.invoke(messages)
     sql = _extract_sql(response.content)
 
     if not sql:
@@ -102,6 +113,11 @@ def generate_sql(question: str) -> str:
 
     if not _is_safe_sql(sql):
         raise ValueError("Unsafe SQL detected.")
+    
+    # Ranking queries must be bounded
+    if _requires_limit(sql):
+        raise ValueError("Ranking query without LIMIT detected.")
+
 
     if DEBUG:
         print("\n[DEBUG] Generated SQL:\n", sql)
@@ -128,7 +144,7 @@ def narrate_results(question: str, df: pd.DataFrame) -> str:
         },
     ]
 
-    response = model.run(messages)
+    response = model.invoke(messages)
     return response.content
 
 

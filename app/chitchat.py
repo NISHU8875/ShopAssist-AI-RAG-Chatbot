@@ -1,5 +1,5 @@
 import os
-from phi.model.openai import OpenAIChat
+from phi.llm.openai import OpenAIChat
 from groq import Groq
 from dotenv import load_dotenv
 from datetime import datetime
@@ -7,7 +7,10 @@ from datetime import datetime
 load_dotenv()
 
 # Initialize OpenAI model (API key auto-loaded from env)
-model = OpenAIChat(id="gpt-5-mini")
+model = OpenAIChat(
+    model="gpt-5-mini",
+    api_key=os.getenv("OPENAI_API_KEY"),
+)
 
 # groq_client = Groq(api_key=os.getenv('GROQ_API_KEY'))
 
@@ -53,7 +56,7 @@ def chitchat_chain(query: str) -> str:
     ]
 
     try:
-        response = model.run(messages)
+        response = model.invoke(messages)
         return response.content
 
     except Exception as e:

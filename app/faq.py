@@ -2,7 +2,7 @@ import os
 import chromadb
 from chromadb.utils import embedding_functions
 
-from phi.model.openai import OpenAIChat
+from phi.llm.openai import OpenAIChat
 
 # from groq import Groq
 import pandas as pd
@@ -11,7 +11,10 @@ from pathlib import Path
 
 #Model initialization
 load_dotenv()
-model = OpenAIChat(id="gpt-5-mini")
+model = OpenAIChat(
+    model="gpt-5-mini",
+    api_key=os.getenv("OPENAI_API_KEY"),
+)
 
 
 faqs_path = Path(__file__).parent / "resources/faq_data.csv"
@@ -20,7 +23,11 @@ ef = embedding_functions.SentenceTransformerEmbeddingFunction(
     model_name='sentence-transformers/all-MiniLM-L6-v2'
 )
 
-chroma_client = chromadb.Client()
+chroma_client = chromadb.Client(
+    settings=chromadb.Settings(
+        persist_directory="./chroma_db"
+    )
+)
 # groq_client = Groq(api_key=os.getenv('GROQ_API_KEY'))
 
 collection_name_faq = 'faqs'
@@ -94,7 +101,7 @@ INSTRUCTIONS:
     ]
 
     try:
-        response = model.run(messages)
+        response = model.invoke(messages)
         return response.content
 
     except Exception as e:
